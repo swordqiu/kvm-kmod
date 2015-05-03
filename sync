@@ -62,7 +62,6 @@ def hack_content(fname, data):
         'allow_unsafe_assigned_interrupts enable_apicv_reg_vid '
         'enable_apicv enable_shadow_vmcs '
         )
-    eventfd_file = fname == 'eventfd.c'
     result = []
     pr_fmt = ''
     inside_block_state = {}
@@ -165,17 +164,6 @@ def hack_content(fname, data):
         line = sub(r'boot_cpu_data.x86_phys_bits', 'kvm_x86_phys_bits', line)
         if match(r'^static const struct vm_operations_struct kvm_'):
             line = sub(r' const ', ' ', line)
-        if eventfd_file and line == '#include <kvm/iodev.h>':
-            w('#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)')
-        if line == 'int kvm_irqfd_init(void);':
-            w('#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)')
-        if line == 'void kvm_irqfd_exit(void);':
-            w('#else')
-            w('static inline int kvm_irqfd_init(void) { return 0; }')
-            w('static inline void kvm_irqfd_exit(void) { }')
-            w('#endif')
-        if match(r'(^\tcase KVM_IRQFD: {|^\tcase KVM_IOEVENTFD: {|^\tcase KVM_CAP_IRQFD:)'):
-            w('#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)')
         if match(r'#include <asm/desc_defs.h>'):
             line = ''
         if match(r'struct fpu '):
@@ -374,7 +362,7 @@ def hack_content(fname, data):
             w('#if LINUX_VERSION_CODE < KERNEL_VERSION(3,12,0)')
             w('\t.shrink = mmu_shrink,')
             line = '#else'
-        if eventfd_file and line == '#include <linux/kernel.h>':
+        if fname == 'eventfd.c' and line == '#include <linux/kernel.h>':
             w('#include <linux/module.h>')
 
         w(line)
@@ -383,8 +371,6 @@ def hack_content(fname, data):
             w('#endif')
         if line == '\tkvm_arch_vcpu_put(vcpu);':
             w('\tkvm_fire_urn();')
-        if match_block_end(r'(\tcase KVM_IRQFD: {|\tcase KVM_IOEVENTFD: {)', r'^\t}') or line == '\tcase KVM_CAP_IOEVENTFD:':
-            w('#endif')
         if line == '\t\tprintk(KERN_ERR "kvm: disabled by bios\\n");':
             w('#ifndef KVM_TBOOT_ENABLED_WORKS\n')
             w('\t\tprintk(KERN_ERR "kvm: if TXT is enabled in the BIOS, disable it\\n");')
@@ -417,12 +403,6 @@ def hack_content(fname, data):
             w('#endif')
         if line == '#define _ASM_X86_KVM_HOST_H':
             w('#include <linux/clocksource.h>')
-    if eventfd_file:
-        result.append('#else\n'
-                      'void kvm_eventfd_init(struct kvm *kvm) { }\n'
-                      'void kvm_irqfd_release(struct kvm *kvm) { }\n'
-                      'void kvm_irq_routing_update(struct kvm *kvm) { }\n'
-                      '#endif')
     data = str.join('', [line + '\n' for line in result])
     return data
 
