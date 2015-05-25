@@ -1460,3 +1460,7 @@ bool single_task_running(void);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 #define trace_seq_buffer_ptr(p) ((p)->buffer + (p)->len)
 #endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
+static inline bool context_tracking_cpu_is_enabled(void) { return false; }
+#endif
